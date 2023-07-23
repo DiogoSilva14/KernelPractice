@@ -40,6 +40,8 @@ struct scull_dev *scull_devices;	/* allocated in scull_init_module */
  */
 int scull_trim(struct scull_dev *dev)
 {
+	printk(KERN_DEBUG "scull_trim evoked");
+
 	struct scull_qset *next, *dptr;
 	int qset = dev->qset;	/* "dev" is not-null */
 	int i;
@@ -67,6 +69,8 @@ int scull_trim(struct scull_dev *dev)
  */
 int scull_open(struct inode *inode, struct file *filp)
 {
+	printk(KERN_DEBUG "scull_open evoked");
+
 	struct scull_dev *dev; /* device information */
 
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
@@ -86,6 +90,7 @@ int scull_open(struct inode *inode, struct file *filp)
 
 int scull_release(struct inode *inode, struct file *filp)
 {
+	printk(KERN_DEBUG "scull_release evoked");
 	return 0;
 }
 
@@ -94,6 +99,8 @@ int scull_release(struct inode *inode, struct file *filp)
  */
 static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 {
+	printk(KERN_DEBUG "scull_follow evoked");
+
 	struct scull_qset *qs = dev->data;
 
 	/* Allocate first qset explicitly if need be */
@@ -126,6 +133,8 @@ static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
+	printk(KERN_DEBUG "scull_read evoked");
+
 	struct scull_dev *dev = filp->private_data;
 	struct scull_qset *dptr;	/* the first listitem */
 	int quantum = dev->quantum, qset = dev->qset;
@@ -169,6 +178,8 @@ out:
 
 ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
+	printk(KERN_DEBUG "scull_write evoked");
+
 	struct scull_dev *dev = filp->private_data;
 	struct scull_qset *dptr;
 	int quantum = dev->quantum, qset = dev->qset;
@@ -225,11 +236,13 @@ out:
 }
 
 /*
- * The "extended" operations -- only sekk
+ * The "extended" operations -- only seek
  */
 
 loff_t scull_llseek(struct file *filp, loff_t off, int whence)
 {
+	printk(KERN_DEBUG "scull_llseek evoked");
+
 	struct scull_dev *dev = filp->private_data;
 	loff_t newpos;
 
@@ -275,6 +288,8 @@ struct file_operations scull_fops = {
  */
 void scull_cleanup_module(void)
 {
+	printk(KERN_DEBUG "scull_cleanup_module evoked");
+
 	int i;
 	dev_t devno = MKDEV(scull_major, scull_minor);
 
@@ -289,6 +304,8 @@ void scull_cleanup_module(void)
 
 	/* cleanup_module is never called if registering failed */
 	unregister_chrdev_region(devno, scull_nr_devs);
+
+	printk(KERN_NOTICE "Scull module cleaned up");
 }
 
 /*
@@ -296,6 +313,8 @@ void scull_cleanup_module(void)
  */
 static void scull_setup_cdev(struct scull_dev *dev, int index)
 {
+	printk(KERN_DEBUG "scull_setup_cdev evoked");
+
 	int err, devno;
 
 	devno = MKDEV(scull_major, scull_minor + index);
@@ -306,10 +325,14 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
 	/* Fail gracefully if need be */
 	if(err)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
+	else
+		printk(KERN_NOTICE "Device scull%d sucessfuly set up", index);
 }
 
 int scull_init_module(void)
 {
+	printk(KERN_DEBUG "scull_init_module evoked");
+
 	int result, i;
 	dev_t dev = 0;
 
@@ -347,6 +370,8 @@ int scull_init_module(void)
 		sema_init(&scull_devices[i].sem, 1);
 		scull_setup_cdev(&scull_devices[i], i);
 	}
+
+	printk(KERN_NOTICE "Scull driver initialized");
 
 	return 0; /* succeed */
 
