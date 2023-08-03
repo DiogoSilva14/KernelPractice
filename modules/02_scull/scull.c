@@ -40,11 +40,11 @@ struct scull_dev *scull_devices;	/* allocated in scull_init_module */
  */
 int scull_trim(struct scull_dev *dev)
 {
-	printk(KERN_DEBUG "scull_trim evoked");
-
 	struct scull_qset *next, *dptr;
 	int qset = dev->qset;	/* "dev" is not-null */
 	int i;
+
+	PDEBUG("scull_trim evoked");
 
 	for(dptr = dev->data; dptr; dptr=next){	/* Iterate the whole list. The for loop stops once dptr is null (meaning the linked list is over) */
 		if(dptr->data){
@@ -69,9 +69,9 @@ int scull_trim(struct scull_dev *dev)
  */
 int scull_open(struct inode *inode, struct file *filp)
 {
-	printk(KERN_DEBUG "scull_open evoked");
-
 	struct scull_dev *dev; /* device information */
+
+	PDEBUG("scull_open evoked");
 
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
 	filp->private_data = dev; /* for other methods */
@@ -95,7 +95,7 @@ int scull_open(struct inode *inode, struct file *filp)
 
 int scull_release(struct inode *inode, struct file *filp)
 {
-	printk(KERN_DEBUG "scull_release evoked");
+	PDEBUG("scull_release evoked");
 	return 0;
 }
 
@@ -104,9 +104,9 @@ int scull_release(struct inode *inode, struct file *filp)
  */
 static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 {
-	printk(KERN_DEBUG "scull_follow evoked");
-
 	struct scull_qset *qs = dev->data;
+
+	PDEBUG("scull_follow evoked");
 
 	/* Allocate first qset explicitly if need be */
 	if (!qs){
@@ -138,14 +138,14 @@ static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
-	printk(KERN_DEBUG "scull_read evoked");
-
 	struct scull_dev *dev = filp->private_data;
 	struct scull_qset *dptr;	/* the first listitem */
 	int quantum = dev->quantum, qset = dev->qset;
 	int itemsize = quantum * qset; /* how many bytes in the listitem */
 	int item, s_pos, q_pos, rest;
 	ssize_t retval = 0;
+
+	PDEBUG("scull_read evoked");
 
 	if(down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
@@ -183,14 +183,14 @@ out:
 
 ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
-	printk(KERN_DEBUG "scull_write evoked");
-
 	struct scull_dev *dev = filp->private_data;
 	struct scull_qset *dptr;
 	int quantum = dev->quantum, qset = dev->qset;
 	int itemsize = quantum * qset;
 	int item, s_pos, q_pos, rest;
 	ssize_t retval = -ENOMEM; /* value used in "goto out" statements */
+
+	PDEBUG("scull_write evoked");
 
 	if(down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
@@ -246,10 +246,10 @@ out:
 
 loff_t scull_llseek(struct file *filp, loff_t off, int whence)
 {
-	printk(KERN_DEBUG "scull_llseek evoked");
-
 	struct scull_dev *dev = filp->private_data;
 	loff_t newpos;
+
+	PDEBUG("scull_llseek evoked");
 
 	switch(whence){
 		case 0: /* SEEK_SET */
@@ -293,10 +293,10 @@ struct file_operations scull_fops = {
  */
 void scull_cleanup_module(void)
 {
-	printk(KERN_DEBUG "scull_cleanup_module evoked");
-
 	int i;
 	dev_t devno = MKDEV(scull_major, scull_minor);
+
+	PDEBUG("scull_cleanup_module evoked");
 
 	/* Get rid of our char dev entries */
 	if(scull_devices){
@@ -310,7 +310,7 @@ void scull_cleanup_module(void)
 	/* cleanup_module is never called if registering failed */
 	unregister_chrdev_region(devno, scull_nr_devs);
 
-	printk(KERN_NOTICE "Scull module cleaned up");
+	PDEBUG("Scull module cleaned up");
 }
 
 /*
@@ -318,9 +318,9 @@ void scull_cleanup_module(void)
  */
 static void scull_setup_cdev(struct scull_dev *dev, int index)
 {
-	printk(KERN_DEBUG "scull_setup_cdev evoked");
-
 	int err, devno;
+
+	PDEBUG("scull_setup_cdev evoked");
 
 	devno = MKDEV(scull_major, scull_minor + index);
 	cdev_init(&dev->cdev, &scull_fops);
@@ -331,16 +331,16 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
 	if(err)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
 	else
-		printk(KERN_NOTICE "Device scull%d sucessfuly set up", index);
+		PDEBUG("Device scull%d sucessfuly set up", index);
 }
 
 int scull_init_module(void)
 {
-	printk(KERN_DEBUG "scull_init_module evoked");
-
 	int result, i;
 	dev_t dev = 0;
 
+	PDEBUG("scull_init_module evoked");
+	
 	/*
 	 * Get a range of minor numbers to work with, asking for a dynamic
 	 * major unless directed otherwise at load time.
@@ -376,7 +376,7 @@ int scull_init_module(void)
 		scull_setup_cdev(&scull_devices[i], i);
 	}
 
-	printk(KERN_NOTICE "Scull driver initialized");
+	PDEBUG("Scull driver initialized");
 
 	return 0; /* succeed */
 

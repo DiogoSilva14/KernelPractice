@@ -75,4 +75,24 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos);
 loff_t scull_llseek(struct file *filp, loff_t off, int whence);
 
+/*
+ * Debugging macros
+ */
+
+#undef PDEBUG
+#ifdef SCULL_DEBUG
+#	ifdef __KERNEL__
+		/* If debugging is on, kernel space */
+#		define PDEBUG(fmt, args...) printk(KERN_DEBUG "scull: " fmt, ## args)
+#	else
+		/* If debugging is on, user space */
+#		define PDEBUG(fmt, args...) fprintf(stderr, fmt, ## args)
+#	endif
+#else
+#	define PDEBUG(fmt, args...) /* debugging off */
+#endif
+
+#undef PDEBUGG
+#define PDEBUGG(fmt, args...) /* nothing: it's a placeholder */
+
 #endif
