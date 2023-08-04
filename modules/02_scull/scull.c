@@ -106,7 +106,7 @@ static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 {
 	struct scull_qset *qs = dev->data;
 
-	PDEBUG("scull_follow evoked");
+	PDEBUGG("scull_follow evoked");
 
 	/* Allocate first qset explicitly if need be */
 	if (!qs){
@@ -143,7 +143,8 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 	struct scull_qset *dptr;	/* the first listitem */
 	int quantum = dev->quantum, qset = dev->qset;
 	int itemsize = quantum * qset; /* how many bytes in the listitem */
-	int item, s_pos, q_pos, rest;
+	int item, s_pos, q_pos, rest, i = 0;
+    size_t read = 0, to_read = 0;
 	ssize_t retval = 0;
 
     PDEBUG("scull_read evoked");
@@ -163,22 +164,48 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 	/* follow the list up to the right position (defined elsewhere) */
 	dptr = scull_follow(dev, item);
 
-	if (dptr == NULL || !dptr->data || ! dptr->data[s_pos])
-		goto out; /* don't fill holes */
+    do{
+        if (dptr == NULL || !dptr->data || ! dptr->data[s_pos])
+		    goto out_success; /* don't fill holes */
 
-	/* read only up to the end of this quantum */
-	if (count > quantum - q_pos)
-		count = quantum - q_pos;
+        for(i = s_pos; i < qset && read < count; i++){
+            if(!dptr->data[i])
+                goto out_success;
 
-	if (copy_to_user(buf, dptr->data[s_pos] + q_pos, count)) {
-		retval = -EFAULT;
-		goto out;
-	}
-	*f_pos += count;
-	retval = count;
+            if((count - read) > quantum - q_pos)
+                to_read = quantum - q_pos;
+            else if ((count - read) > quantum)
+                to_read = quantum;
+            else
+                to_read = count - read;
 
-  out:
+            if (copy_to_user(buf + read, dptr->data[i] + q_pos, to_read)) {
+                retval = -EFAULT;
+                goto out;
+            }
+            
+            read += to_read;
+            q_pos = 0;
+        }
+
+        if(!dptr->next)
+            goto out_success;
+
+        s_pos = 0;
+        dptr = dptr->next;
+    }while(read < count);	
+
+out_success:
+    PDEBUG("Read: %ld", read);
+
+	*f_pos += read;
+	retval = read;
+
+out:
 	up(&dev->sem);
+
+    PDEBUG("Return: %ld", retval);
+
 	return retval;
 }
 
@@ -191,7 +218,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 	int item, s_pos, q_pos, rest;
 	ssize_t retval = -ENOMEM; /* value used in "goto out" statements */
 
-    PDEBUG("scull_write evoked");
+    PDEBUGG("scull_write evoked");
 
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
