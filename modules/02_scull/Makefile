@@ -1,7 +1,7 @@
 # Enable/Disable debugging by commenting
 DEBUG = y
 
-EXTRA_CFLAGS += -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter
+EXTRA_CFLAGS += -Wall -Wextra -Wno-unused-parameter
 # Add debugging flags to CFLAGS
 ifeq ($(DEBUG),y)
 	EXTRA_CFLAGS += -O -g -DSCULL_DEBUG # "-O" is needed to expand inlines
