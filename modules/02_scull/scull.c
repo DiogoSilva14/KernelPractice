@@ -106,7 +106,7 @@ static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 {
 	struct scull_qset *qs = dev->data;
 
-	PDEBUGG("scull_follow evoked");
+	PDEBUG("scull_follow evoked");
 
 	/* Allocate first qset explicitly if need be */
 	if (!qs){
@@ -199,9 +199,6 @@ out_success:
 
 out:
 	up(&dev->sem);
-
-    PDEBUG("Return: %ld", retval);
-
 	return retval;
 }
 
