@@ -10,6 +10,8 @@
 #include <linux/cdev.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/device.h>
+#include <linux/kdev_t.h>
 #include <asm/uaccess.h>
 #include "scull.h"
 
@@ -34,6 +36,7 @@ module_param(scull_quantum, int, S_IRUGO);
 module_param(scull_qset, int, S_IRUGO);
 
 struct scull_dev *scull_devices;	/* allocated in scull_init_module */
+static struct class *scull_class;     /* class used for device file creation */
 
 /*
  * Empty out the scull device; must be called with the device semaphore held
@@ -135,7 +138,6 @@ static struct scull_qset *scull_follow(struct scull_dev *dev, int n)
 /*
  * Data management: read and write
  */
-
 
 ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
@@ -284,7 +286,6 @@ out:
 	return retval;
 }
 
-
 /*
  * The "extended" operations -- only seek
  */
@@ -339,7 +340,7 @@ struct file_operations scull_fops = {
 void scull_cleanup_module(void)
 {
 	int i;
-	dev_t devno = MKDEV(scull_major, scull_minor);
+	dev_t devno = MKDEV(scull_major, scull_minor), specific_devno;
 
 	PDEBUG("scull_cleanup_module evoked");
 
@@ -348,12 +349,19 @@ void scull_cleanup_module(void)
 		for(i = 0; i < scull_nr_devs; i++){
 			scull_trim(scull_devices + i);
 			cdev_del(&scull_devices[i].cdev);
+            specific_devno = MKDEV(scull_major, scull_minor + i);
+            device_destroy(scull_class, specific_devno);
 		}
 		kfree(scull_devices);
 	}
 
 	/* cleanup_module is never called if registering failed */
 	unregister_chrdev_region(devno, scull_nr_devs);
+
+    /* Destroy class */
+    if(scull_class){
+        class_destroy(scull_class);
+    }  
 
 	PDEBUG("Scull module cleaned up");
 }
@@ -364,6 +372,7 @@ void scull_cleanup_module(void)
 static void scull_setup_cdev(struct scull_dev *dev, int index)
 {
 	int err, devno;
+    char name[50];
 
 	PDEBUG("scull_setup_cdev evoked");
 
@@ -371,7 +380,21 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
 	cdev_init(&dev->cdev, &scull_fops);
 	dev->cdev.owner = THIS_MODULE;
 	err = cdev_add(&dev->cdev, devno, 1);
-	
+
+    if(err)
+        goto err;
+
+    sprintf(name, "scull%d", scull_minor + index);
+
+    PDEBUG("Name: %s", name);
+
+    /* Create sysfs device */
+	if(IS_ERR(device_create(scull_class, NULL, devno, NULL, name))){
+        printk(KERN_NOTICE "Could not create device %d", index);
+        err = -1;
+    }
+
+err:
 	/* Fail gracefully if need be */
 	if(err)
 		printk(KERN_NOTICE "Error %d adding scull%d", err, index);
@@ -401,6 +424,12 @@ int scull_init_module(void)
 		printk(KERN_WARNING "scull: can't get major %d\n", scull_major);
 		return result;
 	}
+
+    scull_class = class_create("scull_class");
+    if(IS_ERR(scull_class)){
+        printk(KERN_ERR "scull: could not create the struct class for device");
+        goto fail;
+    }
 
 	/*
 	 * Allocate the devices -- we can't have them static, as the number
