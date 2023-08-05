@@ -174,8 +174,6 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
 
             if((count - read) > quantum - q_pos)
                 to_read = quantum - q_pos;
-            else if ((count - read) > quantum)
-                to_read = quantum;
             else
                 to_read = count - read;
 
@@ -183,7 +181,7 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
                 retval = -EFAULT;
                 goto out;
             }
-            
+
             read += to_read;
             q_pos = 0;
         }
@@ -196,8 +194,6 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
     }while(read < count);	
 
 out_success:
-    PDEBUG("Read: %ld", read);
-
 	*f_pos += read;
 	retval = read;
 
@@ -216,9 +212,11 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 	int quantum = dev->quantum, qset = dev->qset;
 	int itemsize = quantum * qset;
 	int item, s_pos, q_pos, rest;
+    int i = 0;
+    size_t written = 0, to_write = 0;
 	ssize_t retval = -ENOMEM; /* value used in "goto out" statements */
 
-    PDEBUGG("scull_write evoked");
+    PDEBUG("scull_write evoked");
 
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
@@ -230,36 +228,61 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
 
 	/* follow the list up to the right position */
 	dptr = scull_follow(dev, item);
-	if (dptr == NULL)
+	
+    if (dptr == NULL)
 		goto out;
-	if (!dptr->data) {
-		dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
-		if (!dptr->data)
-			goto out;
 
-		memset(dptr->data, 0, qset * sizeof(char *));
-	}
-	if (!dptr->data[s_pos]) {
-		dptr->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
-		if (!dptr->data[s_pos])
-			goto out;
-	}
-	/* write only up to the end of this quantum */
-	if (count > quantum - q_pos)
-		count = quantum - q_pos;
+    do{
+        if(!dptr->data) {
+            dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
+            if(!dptr->data)
+                goto out;
 
-	if (copy_from_user(dptr->data[s_pos]+q_pos, buf, count)) {
-		retval = -EFAULT;
-		goto out;
-	}
-	*f_pos += count;
-	retval = count;
+            memset(dptr->data, 0, qset * sizeof(char *));
+        }
 
-		/* update the size */
+        for(i = s_pos; i < qset && written < count; i++){
+            if(!dptr->data[i]) {
+                dptr->data[i] = kmalloc(quantum, GFP_KERNEL);
+                
+                if (!dptr->data[i])
+                    goto out;
+            }
+
+            if((count - written) > quantum - q_pos)
+		        to_write = quantum - q_pos;
+            else
+                to_write = count - written;
+
+            if (copy_from_user(dptr->data[i] + q_pos, buf + written, to_write)) {
+                retval = -EFAULT;
+                goto out;
+            }
+
+            q_pos = 0;
+            written += to_write;
+        }
+
+        if(!dptr->next){
+            dptr->next = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
+            if(!dptr->next)
+                goto out;
+
+            memset(dptr->next, 0, sizeof(struct scull_qset));
+        }
+
+        dptr = dptr->next;
+        s_pos = 0;
+    }while(written < count);
+
+	*f_pos += written;
+	retval = written;
+
+	/* update the size */
 	if (dev->size < *f_pos)
 		dev->size = *f_pos;
 
-  out:
+out:
 	up(&dev->sem);
 	return retval;
 }
